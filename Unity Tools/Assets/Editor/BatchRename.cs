@@ -2,16 +2,21 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
-using System;
+using System.Linq;
 
 public enum ObjectTypes
 {
     Objects,
+    AniamtionClip,
+    AudioClip,
+    Font,
     Material,
-    Mesh,
+    Model,
     Prefab,
     Scene,
-    Sprite
+    Shader,
+    Sprite,
+    Texture
 }
 public enum ActionTypes
 {
@@ -25,13 +30,13 @@ public class BatchRename : EditorWindow
     ActionTypes actionTypes;
 
     delegate void Action();
-    List<Action> DrawGUIActions = new List<Action>();
+    List<Action> drawGUIActions = new List<Action>();
 
     [MenuItem("Tools/Batch Rename %F2")]
     public static void ShowWindow()
     {
         BatchRename batchRenameWindow = GetWindow<BatchRename>("Batch Rename");
-        batchRenameWindow.AddActions();
+        batchRenameWindow.AddDrawActions();
     }
 
     bool selectedEnabaled = true;
@@ -53,12 +58,68 @@ public class BatchRename : EditorWindow
         EditorGUILayout.EndHorizontal();
 
         //load GUI for selected action type
-        DrawGUIActions[(Int32)actionTypes]();
-
-        GUILayout.Label($"Rename {0} Object(s)");
-        if (GUILayout.Button("Rename"))
+        drawGUIActions[(int)actionTypes]();
+        
+        if (GUILayout.Button("OK!"))
         {
-            // Adding Button Actions
+            SpecifyObjects();
+            Rename();
+        }
+    }
+
+    string AddPrefix(Object assetObject)
+    {
+        return $"{newName} {assetObject.name}";
+    }
+
+    string AddSuffix(Object assetObject)
+    {
+        return $"{assetObject.name} {newName}";
+    }
+    
+    string GetNewName()
+    {
+        return newName;
+    }
+
+    void Rename()
+    {
+
+        if (selectedEnabaled)
+        {
+            foreach (var assetObject in selectedObjects)
+            {
+                string path = AssetDatabase.GetAssetPath(assetObject);
+                string newName = prefixToggleSelected ? AddSuffix(assetObject) : suffixToggleSelected ? AddSuffix(assetObject) : GetNewName();
+                string pathWithNewName = path.Replace(assetObject.name, newName);
+                pathWithNewName = AssetDatabase.GenerateUniqueAssetPath(pathWithNewName);
+                string pathWithoutFileName = path.Replace(assetObject.name, string.Empty);
+                newName = pathWithNewName.Replace(pathWithoutFileName, string.Empty);
+                AssetDatabase.RenameAsset(path, newName);
+            }
+        }
+        else
+        {
+            //
+        }
+    }
+
+    List<string> objectsPath = new List<string>(); // for All enabled
+    List<Object> selectedObjects = new List<Object>(); // for selected enabled
+
+    void SpecifyObjects()
+    {
+        if (selectedEnabaled)
+        {
+            System.Type type = System.Type.GetType(objectTypes.ToString());
+            selectedObjects = Selection.GetFiltered(type, SelectionMode.Editable).ToList();
+        }
+        else
+        {
+            string filter = $"t:{objectTypes.ToString()} ";
+            if (actionTypes == ActionTypes.FindAndReplace)
+                filter += findName;
+            objectsPath = AssetDatabase.FindAssets(filter).ToList();
         }
     }
 
@@ -72,7 +133,6 @@ public class BatchRename : EditorWindow
         findName = GUILayout.TextField(findName);
         EditorGUILayout.EndHorizontal();
 
-
         EditorGUILayout.BeginHorizontal();
         GUILayout.Label("Replace\t");
         replacedName = GUILayout.TextField(replacedName);
@@ -82,7 +142,7 @@ public class BatchRename : EditorWindow
     bool newToggleSelected = true;
     bool prefixToggleSelected = false;
     bool suffixToggleSelected = false;
-    string inputName;
+    string newName;
 
     void Draw_SetName_GUI()
     {
@@ -95,9 +155,8 @@ public class BatchRename : EditorWindow
 
         EditorGUILayout.BeginHorizontal();
         GUILayout.Label("Name");
-        inputName = GUILayout.TextField(inputName);
+        newName = GUILayout.TextField(newName);
         EditorGUILayout.EndHorizontal();
-
     }
 
     bool SwitchToggle(params bool[] otherToggles)
@@ -108,11 +167,12 @@ public class BatchRename : EditorWindow
         return true;
     }
     
-    void AddActions()
+    void AddDrawActions()
     {
-        DrawGUIActions.Add(Draw_FindAndReplace_GUI);
-        DrawGUIActions.Add(Draw_SetName_GUI);
+        drawGUIActions.Add(Draw_FindAndReplace_GUI);
+        drawGUIActions.Add(Draw_SetName_GUI);
     }
+
 
 }
 
